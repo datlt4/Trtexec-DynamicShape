@@ -3,15 +3,13 @@
 TrtLoger::Logger *mLogger = TrtLoger::LoggerFactory::CreateConsoleLogger(TrtLoger::INFO);
 
 // ./Trtexec \
-//     --onnx ../../model-zoo/fast_pose_res50/fast_res50_256x192_dynamic.onnx \
-//     --engine ../../model-zoo/fast_pose_res50/fast_res50_256x192_fp16_dynamic.engine \
+//     --onnx model.onnx \
+//     --engine model.engine \
 //     --inputName "input" \
 //     --minShape 1x3x256x192 \
 //     --optShape 8x3x256x192 \
 //     --maxShape 32x3x256x192 \
 //     --workspace 1024
-
-
 
 int main(int argc, char **argv)
 {
