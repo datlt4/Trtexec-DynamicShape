@@ -54,7 +54,7 @@
     --dynamicOnnx
 ```
 
-## Create EasyOCR-recognition engine
+## Create EasyOCR-detection engine
 
 ```bash
 ./Trtexec \
@@ -68,7 +68,7 @@
     --dynamicOnnx
 ```
 
-## Create Yolov7-recognition engine
+## Create Yolov7-detection engine
 
 ```bash
 ./TrtExec-bin \
@@ -80,4 +80,3 @@
     --maxShape 1x3xHxW \
     --workspace 1024
 ```
-
