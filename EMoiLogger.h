@@ -39,7 +39,7 @@
 #define INVALID_SOCKET -1
 #endif
 
-namespace TrtLoger
+namespace EMoiLogger
 {
 
     enum LogLevel
@@ -302,5 +302,5 @@ namespace TrtLoger
 Logger file
 Usage:
 */
-extern TrtLoger::Logger *mLogger;
-#define MLOG(level) TrtLoger::LogTransaction(mLogger, TrtLoger::level, __FILE__, __LINE__, __FUNCTION__).GetStream()
+extern EMoiLogger::Logger *emoiLogger;
+#define ELOG(level) EMoiLogger::LogTransaction(emoiLogger, EMoiLogger::level, __FILE__, __LINE__, __FUNCTION__).GetStream()

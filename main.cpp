@@ -1,6 +1,6 @@
 #include "Trtexec.h"
 
-TrtLoger::Logger *mLogger = TrtLoger::LoggerFactory::CreateConsoleLogger(TrtLoger::INFO);
+EMoiLogger::Logger *emoiLogger = EMoiLogger::LoggerFactory::CreateConsoleLogger(EMoiLogger::INFO);
 
 // ./Trtexec \
 //     --onnx model.onnx \
@@ -10,10 +10,11 @@ TrtLoger::Logger *mLogger = TrtLoger::LoggerFactory::CreateConsoleLogger(TrtLoge
 //     --optShape 8x3x256x192 \
 //     --maxShape 32x3x256x192 \
 //     --workspace 1024
+//     --dynamicOnnx
 
 int main(int argc, char **argv)
 {
-    ParseOnnxConfig config;
+    OnnxParserConfig config;
     if (ParseCommandLine(argc, argv, config))
     {
         std::unique_ptr<TrtExec> executor = std::make_unique<TrtExec>(config);
@@ -23,9 +24,9 @@ int main(int argc, char **argv)
             executor->parseOnnxModel();
             executor->saveEngine(config.engine_dir);
         }
-        MLOG(INFO) << "[ PASSED ]:\n"
+        ELOG(INFO) << "[ PASSED ]:\n"
                    << config << std::endl;
     }
     else
-        MLOG(ERROR) << "[ ERROR ] STOP!!!" << std::endl;
+        ELOG(ERROR) << "[ ERROR ] STOP!!!" << std::endl;
 }

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.5 FATAL_ERROR)
-project("AlphaPose")
+project("Trtexec2")
 
 set(CMAKE_CXX_STANDARD 20)
 set(GCC_CXX_FLAGS "${GCC_CXX_FLAGS}")
@@ -35,7 +35,7 @@ set(SRC ${SRC} Trtexec.cpp)
 
 # Main.cpp
 set(SRC ${SRC} main.cpp)
-set(APP "Trtexec")
+set(APP "TrtExec-bin")
 
 # Target
 include_directories(${INC})

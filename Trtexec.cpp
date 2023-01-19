@@ -3,35 +3,42 @@
 bool TrtExec::parseOnnxModel()
 {
     // const char inputName[10] = "input";
-    TRTUniquePtr<nvinfer1::IBuilder> builder{nvinfer1::createInferBuilder(gLogger)};
+    EMoiUniquePtr<nvinfer1::IBuilder> builder{nvinfer1::createInferBuilder(iELogger)};
     // We need to define explicit batch
     const auto explicitBatch = 1U << static_cast<uint32_t>(nvinfer1::NetworkDefinitionCreationFlag::kEXPLICIT_BATCH);
-    TRTUniquePtr<nvinfer1::INetworkDefinition> prediction_network{builder->createNetworkV2(explicitBatch)};
-    // TRTUniquePtr< nvinfer1::INetworkDefinition > network{builder->createNetwork()};
-    TRTUniquePtr<nvonnxparser::IParser> parser{nvonnxparser::createParser(*prediction_network, gLogger)};
+    EMoiUniquePtr<nvinfer1::INetworkDefinition> prediction_network{builder->createNetworkV2(explicitBatch)};
+    // EMoiUniquePtr< nvinfer1::INetworkDefinition > network{builder->createNetwork()};
+    EMoiUniquePtr<nvonnxparser::IParser> parser{nvonnxparser::createParser(*prediction_network, iELogger)};
     // parse ONNX
     if (!parser->parseFromFile(info.onnx_dir.c_str(), static_cast<int>(nvinfer1::ILogger::Severity::kINFO)))
     {
-        MLOG(ERROR) << "ERROR: could not parse the model.";
+        ELOG(ERROR) << "ERROR: could not parse the model.";
         return false;
     }
-    TRTUniquePtr<nvinfer1::IBuilderConfig> config{builder->createBuilderConfig()};
+    EMoiUniquePtr<nvinfer1::IBuilderConfig> config{builder->createBuilderConfig()};
     if (!config)
     {
-        MLOG(ERROR) << "Create builder config failed.";
+        ELOG(ERROR) << "Create builder config failed.";
         return false;
     }
     config->setFlag(nvinfer1::BuilderFlag::kFP16);
     // allow TensorRT to use up to 1GB of GPU memory for tactic selection.
     config->setMaxWorkspaceSize(info.workspace);
-    builder->setMaxBatchSize(info.maxBatchSize);
-    // generate TensorRT engine optimized for the target platform
-    nvinfer1::IOptimizationProfile *profileCalib = builder->createOptimizationProfile();
-    // We do not need to check the return of setDimension and setCalibrationProfile here as all dims are explicitly set
-    profileCalib->setDimensions(info.inputName.c_str(), nvinfer1::OptProfileSelector::kMIN, nvinfer1::Dims4{info.minBatchSize, info.minImageChannel, info.minImageHeight, info.minImageWidth});
-    profileCalib->setDimensions(info.inputName.c_str(), nvinfer1::OptProfileSelector::kOPT, nvinfer1::Dims4{info.optBatchSize, info.optImageChannel, info.optImageHeight, info.optImageWidth});
-    profileCalib->setDimensions(info.inputName.c_str(), nvinfer1::OptProfileSelector::kMAX, nvinfer1::Dims4{info.maxBatchSize, info.maxImageChannel, info.maxImageHeight, info.maxImageWidth});
-    config->addOptimizationProfile(profileCalib);
+    if (info.dynamicOnnx)
+    {
+        builder->setMaxBatchSize(info.maxBatchSize);
+        // generate TensorRT engine optimized for the target platform
+        nvinfer1::IOptimizationProfile *profileCalib = builder->createOptimizationProfile();
+        // We do not need to check the return of setDimension and setCalibrationProfile here as all dims are explicitly set
+        profileCalib->setDimensions(info.inputName.c_str(), nvinfer1::OptProfileSelector::kMIN, nvinfer1::Dims4{info.minBatchSize, info.minImageChannel, info.minImageHeight, info.minImageWidth});
+        profileCalib->setDimensions(info.inputName.c_str(), nvinfer1::OptProfileSelector::kOPT, nvinfer1::Dims4{info.optBatchSize, info.optImageChannel, info.optImageHeight, info.optImageWidth});
+        profileCalib->setDimensions(info.inputName.c_str(), nvinfer1::OptProfileSelector::kMAX, nvinfer1::Dims4{info.maxBatchSize, info.maxImageChannel, info.maxImageHeight, info.maxImageWidth});
+        config->addOptimizationProfile(profileCalib);
+    }
+    else
+    {
+        builder->setMaxBatchSize(1);
+    }
     this->prediction_engine.reset(builder->buildEngineWithConfig(*prediction_network, *config));
     this->prediction_context.reset(this->prediction_engine->createExecutionContext());
     return true;
@@ -42,13 +49,13 @@ bool TrtExec::saveEngine(const std::string &fileName)
     std::ofstream engineFile(fileName, std::ios::binary);
     if (!engineFile)
     {
-        MLOG(ERROR) << "Cannot open engine file: " << fileName;
+        ELOG(ERROR) << "Cannot open engine file: " << fileName;
         return false;
     }
-    TRTUniquePtr<nvinfer1::IHostMemory> serializedEngine{this->prediction_engine->serialize()};
+    EMoiUniquePtr<nvinfer1::IHostMemory> serializedEngine{this->prediction_engine->serialize()};
     if (serializedEngine == nullptr)
     {
-        MLOG(ERROR) << "Engine serialization failed";
+        ELOG(ERROR) << "Engine serialization failed";
         return false;
     }
     engineFile.write(static_cast<char *>(serializedEngine->data()), serializedEngine->size());
@@ -60,7 +67,7 @@ bool TrtExec::loadEngine(const std::string &fileName)
     std::ifstream engineFile(fileName, std::ios::binary);
     if (!engineFile)
     {
-        MLOG(ERROR) << "Cannot open engine file: " << fileName;
+        ELOG(ERROR) << "Cannot open engine file: " << fileName;
         return false;
     }
     engineFile.seekg(0, std::ifstream::end);
@@ -72,15 +79,60 @@ bool TrtExec::loadEngine(const std::string &fileName)
 
     if (!engineFile.good())
     {
-        MLOG(ERROR) << "Error loading engine file";
+        ELOG(ERROR) << "Error loading engine file";
         return false;
     }
 
-    TRTUniquePtr<nvinfer1::IRuntime> runtime{nvinfer1::createInferRuntime(gLogger.getTRTLogger())};
+    EMoiUniquePtr<nvinfer1::IRuntime> runtime{nvinfer1::createInferRuntime(iELogger.getTRTLogger())};
     this->prediction_engine.reset(runtime->deserializeCudaEngine(engineData.data(), fsize, nullptr));
     this->prediction_context.reset(this->prediction_engine->createExecutionContext());
     this->maxBatchSize = this->prediction_engine->getMaxBatchSize();
     return this->prediction_engine != nullptr;
+}
+
+int32_t TrtExec::getNbBindings()
+{
+    return this->prediction_engine->getNbBindings();
+}
+
+nvinfer1::Dims TrtExec::getBindingDimensions(int32_t bindingIndex)
+{
+    return this->prediction_engine->getBindingDimensions(bindingIndex);
+}
+
+nvinfer1::DataType TrtExec::getBindingDataType(int32_t bindingIndex)
+{
+    return this->prediction_engine->getBindingDataType(bindingIndex);
+}
+
+int TrtExec::getMaxBatchSize()
+{
+    return this->prediction_engine->getMaxBatchSize();
+}
+
+bool TrtExec::clearBuffer(bool freeInput, bool freeOutput)
+{
+    this->prediction_input_dims.clear();
+    this->prediction_output_dims.clear();
+    try
+    {
+        if (freeInput)
+            for (void *buf : input_buffers)
+                cudaFree(buf);
+
+        if (freeOutput)
+            for (void *buf : output_buffers)
+                cudaFree(buf);
+    }
+    catch (std::runtime_error &e)
+    {
+        ELOG(ERROR) << e.what() << std::endl;
+        return false;
+    }
+    input_buffers.clear();
+    output_buffers.clear();
+    // TODO: Properly re wrote this
+    return true;
 }
 
 void ShowHelpAndExit(const char *szBadOption = NULL)
@@ -95,7 +147,7 @@ void ShowHelpAndExit(const char *szBadOption = NULL)
     oss << "Options:" << std::endl
         << "    --onnx [PATH]       : path to Onnx file" << std::endl
         << "    --engine [PATH]     : name of output Engine file" << std::endl
-        // << "    --dynamic           : indicate that build engine with Dynamic Batch Size" << std::endl
+        << "    --dynamicOnnx       : indicate that build engine with Dynamic Batch Size" << std::endl
         << "    --minShape [BxCxHxW]: min input shape" << std::endl
         << "    --optShape [BxCxHxW]: optimization input shape" << std::endl
         << "    --maxShape [BxCxHxW]: max input shape" << std::endl
@@ -109,7 +161,7 @@ void ShowHelpAndExit(const char *szBadOption = NULL)
         std::cout << oss.str();
 }
 
-bool ParseCommandLine(int argc, char *argv[], ParseOnnxConfig &config)
+bool ParseCommandLine(int argc, char *argv[], OnnxParserConfig &config)
 {
     if (argc <= 1)
     {
@@ -157,10 +209,10 @@ bool ParseCommandLine(int argc, char *argv[], ParseOnnxConfig &config)
                 config.inputName = std::string(argv[i]);
             continue;
         }
-        // else if (std::string(argv[i]) == std::string("--dynamic"))
-        // {
-        //     config.dynamic = true;
-        // }
+        else if (std::string(argv[i]) == std::string("--dynamicOnnx"))
+        {
+            config.dynamicOnnx = true;
+        }
         else if (std::string(argv[i]) == std::string("--minShape"))
         {
             if (++i == argc)
@@ -186,7 +238,6 @@ bool ParseCommandLine(int argc, char *argv[], ParseOnnxConfig &config)
                 config.minImageChannel = std::atoi(result.at(1).c_str());
                 config.minImageHeight = std::atoi(result.at(2).c_str());
                 config.minImageWidth = std::atoi(result.at(3).c_str());
-                std::cout << "cac \n";
             }
             continue;
         }
