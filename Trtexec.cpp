@@ -186,7 +186,6 @@ bool ParseCommandLine(int argc, char *argv[], ParseOnnxConfig &config)
                 config.minImageChannel = std::atoi(result.at(1).c_str());
                 config.minImageHeight = std::atoi(result.at(2).c_str());
                 config.minImageWidth = std::atoi(result.at(3).c_str());
-                std::cout << "cac \n";
             }
             continue;
         }

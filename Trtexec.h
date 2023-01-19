@@ -3,13 +3,11 @@
 
 #include <iostream>
 #include <vector>
-#include <opencv2/opencv.hpp>
 #include <cmath>
 #include <assert.h>
 #include <map>
 #include <chrono>
 #include <atomic>
-#include <opencv2/opencv.hpp>
 #include <cuda_runtime_api.h>
 #include <map>
 #include <numeric>
@@ -62,7 +60,7 @@ struct TRTDestroy
     template <class T>
     void operator()(T *obj) const
     {
-        if (obj==nullptr)
+        if (obj)
         {
             obj->destroy();
         }
@@ -127,18 +125,7 @@ protected:
 
 public:
     TrtExec(const ParseOnnxConfig &info) : info{info} { cudaStreamCreate(&stream); }
-    ~TrtExec()
-    {
-        cudaStreamDestroy(stream);
-        for (void *buf : output_buffers)
-            cudaFree(buf);
-        for (void *buf : input_buffers)
-            cudaFree(buf);
-        this->prediction_context.reset();
-        this->prediction_engine.reset();
-        this->prediction_network.reset();
-        this->parser.parser.reset();
-    }
+    ~TrtExec() { cudaStreamDestroy(stream); }
     /*virtual*/ bool parseOnnxModel();
     /*virtual*/ bool saveEngine(const std::string &fileName);
     /*virtual*/ bool loadEngine(const std::string &fileName);

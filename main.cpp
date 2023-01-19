@@ -13,6 +13,7 @@ TrtLoger::Logger *mLogger = TrtLoger::LoggerFactory::CreateConsoleLogger(TrtLoge
 
 int main(int argc, char **argv)
 {
+    ShowWindow(GetConsoleWindow(), SW_HIDE);
     ParseOnnxConfig config;
     if (ParseCommandLine(argc, argv, config))
     {
